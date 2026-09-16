@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Session Log Viewer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      padding: 20px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #333;
+    }
+    h1 { font-size: 24px; font-weight: 500; }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    select, button, input {
+      background: #2a2a2a;
+      border: 1px solid #444;
+      color: #e0e0e0;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    button { cursor: pointer; }
+    button:hover { background: #3a3a3a; }
+    button.primary { background: #0066cc; border-color: #0066cc; }
+    button.primary:hover { background: #0077ee; }
+    .session-list {
+      background: #2a2a2a;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .session-item {
+      padding: 10px;
+      margin: 5px 0;
+      background: #333;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .session-item:hover { background: #3a3a3a; }
+    .session-item.active { background: #0066cc; }
+    .session-meta { font-size: 12px; color: #888; margin-top: 4px; }
+    .view-modes {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .view-mode {
+      padding: 6px 12px;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .view-mode.active { background: #0066cc; border-color: #0066cc; }
+    .content {
+      background: #2a2a2a;
+      border-radius: 8px;
+      padding: 20px;
+      min-height: 400px;
+      overflow: auto;
+    }
+    .event {
+      margin: 10px 0;
+      padding: 12px;
+      background: #333;
+      border-radius: 6px;
+      border-left: 3px solid #0066cc;
+    }
+    .event.system { border-left-color: #ff6600; }
+    .event.user { border-left-color: #00cc66; }
+    .event.assistant { border-left-color: #cc00cc; }
+    .event.tool { border-left-color: #ffcc00; }
+    .event-type {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 8px;
+      color: #88ccff;
+    }
+    .event-data {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #ccc;
+    }
+    .event-seq { font-size: 11px; color: #666; float: right; }
+    pre {
+      background: #1a1a1a;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .summary-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: #333;
+      padding: 15px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .stat-value { font-size: 24px; font-weight: 600; color: #0066cc; }
+    .stat-label { font-size: 12px; color: #888; margin-top: 4px; }
+    .loading { text-align: center; padding: 40px; color: #888; }
+    .empty { text-align: center; padding: 40px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Session Log Viewer</h1>
+    <div style="display:flex;gap:8px;">
+      <button onclick="openLlmSettings()" style="background:#2d5a8c;border-color:#2d5a8c;">LLM 请求</button>
+      <button onclick="loadSessions()">Refresh Sessions</button>
+    </div>
+  </div>
+
+  <div class="session-list" id="sessionList">
+    <div class="loading">Loading sessions...</div>
+  </div>
+
+  <div id="viewerSection" style="display: none;">
+    <div class="controls">
+      <div class="view-modes">
+        <div class="view-mode active" data-mode="summary">Summary</div>
+        <div class="view-mode" data-mode="events">All Events</div>
+        <div class="view-mode" data-mode="messages">Messages Only</div>
+        <div class="view-mode" data-mode="tools">Tool Calls</div>
+        <div class="view-mode" data-mode="raw">Raw JSON</div>
+      </div>
+      <select id="filterType">
+        <option value="">All Event Types</option>
+      </select>
+      <input type="text" id="searchBox" placeholder="Search..." />
+    </div>
+
+    <div id="summaryStats" class="summary-stats"></div>
+    <div class="content" id="content">
+      <div class="empty">Select a session to view</div>
+    </div>
+  </div>
+
+  <script>
+    let sessions = [];
+    let currentSession = null;
+    let currentEvents = [];
+    let currentMode = 'summary';
+
+    async function loadSessions() {
+      const list = document.getElementById('sessionList');
+      list.innerHTML = '<div class="loading">Loading sessions...</div>';
+      try {
+        const res = await fetch('/api/sessions');
+        sessions = await res.json();
+        renderSessions();
+      } catch (err) {
+        list.innerHTML = '<div class="empty">Failed to load sessions: ' + err.message + '</div>';
+      }
+    }
+
+    function renderSessions() {
+      const list = document.getElementById('sessionList');
+      if (sessions.length === 0) {
+        list.innerHTML = '<div class="empty">No sessions found</div>';
+        return;
+      }
+      list.innerHTML = sessions.map((s, i) => `
+        <div class="session-item" onclick="loadSession(${i})" data-index="${i}">
+          <div>${s.sessionId}</div>
+          <div class="session-meta">
+            ${s.workspace} ⃃ ${formatSize(s.size)} �k ${new Date(s.modified).toLocaleString()}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function loadSession(index) {
+      const session = sessions[index];
+      currentSession = session;
+      document.querySelectorAll('.session-item').forEach((el, i) => {
+        el.classList.toggle('active', i === index);
+      });
+      const viewer = document.getElementById('viewerSection');
+      const content = document.getElementById('content');
+      viewer.style.display = 'block';
+      content.innerHTML = '<div class="loading">Loading events...</div>';
+      try {
+        const res = await fetch('/api/session?path=' + encodeURIComponent(session.path));
+        currentEvents = await res.json();
+        updateFilterTypes();
+        render();
+      } catch (err) {
+        content.innerHTML = '<div class="empty">Failed to load: ' + err.message + '</div>';
+      }
+    }
+
+    function updateFilterTypes() {
+      const types = new Set(currentEvents.map(e => e.type || e.kind || 'unknown'));
+      const select = document.getElementById('filterType');
+      select.innerHTML = '<option value="">All Event Types</option>' +
+        [...types].sort().map(t => `<option value="${t}">${t}</option>`).join('');
+    }
+
+    function render() {
+      const content = document.getElementById('content');
+      const filterType = document.getElementById('filterType').value;
+      const search = document.getElementById('searchBox').value.toLowerCase();
+      let events = currentEvents;
+      if (filterType) {
+        events = events.filter(e => (e.type || e.kind || 'unknown') === filterType);
+      }
+      if (search) {
+        events = events.filter(e => JSON.stringify(e).toLowerCase().includes(search));
+      }
+      switch (currentMode) {
+        case 'summary': renderSummary(); break;
+        case 'events': renderEvents(events); break;
+        case 'messages': renderMessages(events); break;
+        case 'tools': renderTools(events); break;
+        case 'raw': renderRaw(events); break;
+      }
+    }
+
+    function renderSummary() {
+      const stats = document.getElementById('summaryStats');
+      const typeCount = {};
+      currentEvents.forEach(e => {
+        const t = e.type || e.kind || 'unknown';
+        typeCount[t] = (typeCount[t] || 0) + 1;
+      });
+      const totalChars = currentEvents.reduce((sum, e) => sum + JSON.stringify(e).length, 0);
+      stats.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-value">${currentEvents.length}</div>
+          <div class="stat-label">Total Events</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${Object.keys(typeCount).length}</div>
+          <div class="stat-label">Event Types</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${formatSize(totalChars)}</div>
+          <div class="stat-label">Total Size</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${typeCount['user/message'] || 0}</div>
+          <div class="stat-label">User Messages</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${typeCount['assistant/message'] || 0}</div>
+          <div class="stat-label">Assistant Messages</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${typeCount['tool/call'] || 0}</div>
+          <div class="stat-label">Tool Calls</div>
+        </div>
+      `;
+      const content = document.getElementById('content');
+      content.innerHTML = `
+        <h3 style="margin-bottom: 15px;">Event Type Breakdown</h3>
+        ${Object.entries(typeCount)
+          .sort((a, b) => b[1] - a[1])
+          .map(([type, count]) => `
+            <div class="event">
+              <div class="event-type">${type} <span class="event-seq">×${count}</span></div>
+            </div>
+          `).join('')}
+      `;
+    }
+
+    function renderEvents(events) {
+      document.getElementById('summaryStats').innerHTML = '';
+      const content = document.getElementById('content');
+      if (events.length === 0) {
+        content.innerHTML = '<div class="empty">No events match filter</div>';
+        return;
+      }
+      content.innerHTML = events.map((e, i) => {
+        const type = e.type || e.kind || 'unknown';
+        const cls = type.includes('system') ? 'system' :
+                    type.includes('user') ? 'user' :
+                    type.includes('assistant') ? 'assistant' :
+                    type.includes('tool') ? 'tool' : '';
+        return `
+          <div class="event ${cls}">
+            <div class="event-type">
+              ${type}
+              <span class="event-seq">#${i + 1}</span>
+            </div>
+            <div class="event-data">${formatEventData(e)}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderMessages(events) {
+      document.getElementById('summaryStats').innerHTML = '';
+      const messages = events.filter(e =>
+        (e.type || '').includes('/message') || (e.type || '').includes('system/')
+      );
+      if (messages.length === 0) {
+        document.getElementById('content').innerHTML = '<div class="empty">No messages found</div>';
+        return;
+      }
+      renderEvents(messages);
+    }
+
+    function renderTools(events) {
+      document.getElementById('summaryStats').innerHTML = '';
+      const tools = events.filter(e => (e.type || '').includes('tool/'));
+      if (tools.length == 0) {
+        document.getElementById('content').innerHTML = '<div class="empty">No tool calls found</div>';
+        return;
+      }
+      renderEvents(tools);
+    }
+
+    function renderRaw(events) {
+      document.getElementById('summaryStats').innerHTML = '';
+      document.getElementById('content').innerHTML = '<pre>' + JSON.stringify(events, null, 2) + '</pre>';
+    }
+
+    function formatEventData(event) {
+      const data = event.data || event;
+      if (typeof data === 'string') {
+        return data.length > 500 ? data.substring(0, 500) + '...' : data;
+      }
+      const str = JSON.stringify(data, null, 2);
+      return str.length > 1000 ? str.substring(0, 1000) + '...' : str;
+    }
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    document.querySelectorAll('.view-mode').forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll('.view-mode').forEach(e => e.classList.remove('active'));
+        el.classList.add('active');
+        currentMode = el.dataset.mode;
+        render();
+      });
+    });
+
+    document.getElementById('filterType').addEventListener('change', render);
+    document.getElementById('searchBox').addEventListener('input', render);
+
+    function openLlmSettings() {
+      if (currentSession) {
+        window.open('/llm-request-settings?session=' + encodeURIComponent(currentSession.path), '_blank');
+      } else {
+        window.open('/llm-request-settings', '_blank');
+      }
+    }
+
+    loadSessions();
+  </script>
+</body>
+</html>

@@ -24,6 +24,7 @@ const KIND_LABEL_KEY: Record<TrajectoryCellKind, TrajectoryKey> = {
   message: 'kind.message',
   tool: 'kind.tool',
   subtool: 'kind.sub',
+  request: 'kind.request',
 }
 
 const TAG_CLASS: Record<TrajectoryCellKind, string | undefined> = {
@@ -34,6 +35,7 @@ const TAG_CLASS: Record<TrajectoryCellKind, string | undefined> = {
   message: css.tagMessage,
   tool: css.tagTool,
   subtool: css.tagSubtool,
+  request: css.tagSystem,
 }
 
 /**

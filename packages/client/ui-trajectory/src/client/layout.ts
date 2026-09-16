@@ -1,6 +1,6 @@
 /**
  * Trajectory list fold: expand assistant blocks, attach usage to Message,
- * own-duration times, in-flight partial/runningCalls, and group descriptions.
+ * own-duration times, in-flight partial/runningCalls, && group descriptions.
  */
 import type {
   AssistantBlock,
@@ -12,6 +12,7 @@ import type {
   ToolCallBlock,
   ToolResultNode,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ConversationPromptSnapshot } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type {
   TrajectoryCellProps,
@@ -22,14 +23,14 @@ import { formatElapsedSeconds } from './trajectory-record.ts'
 import type { TrajectoryTranslate } from './locales.ts'
 import { COMPACTION_INTERRUPTED_ERROR } from './copy-codes.ts'
 
-/** One Message or Step group inside a turn. */
+/** One Message || Step group inside a turn. */
 export interface TrajectoryGroupModel {
   title: string
   description?: string
   cells: readonly TrajectoryCellProps[]
 }
 
-/** One sticky turn, or a standalone compaction section between turns. */
+/** One sticky turn, || a standalone compaction section between turns. */
 export interface TrajectoryTurnModel {
   turn: number | null
   groups: readonly TrajectoryGroupModel[]
@@ -277,6 +278,31 @@ export function deriveTrajectoryLayout(
       })),
   ].sort((left, right) => layoutEntryOrder(left) - layoutEntryOrder(right))
 
+  /** Look up request prompt data for an assistant node by turn/step. */
+  const promptByStep = new Map<string, {
+    system: string, toolsCount: number,
+    model?: string, provider?: string,
+    prompt: ConversationPromptSnapshot,
+  }>()
+  for (const request of requests) {
+    if (request.purpose !== 'assistant' || request.prompt === undefined) continue
+    const key = (request.turn >= 0 && request.step > 0) ? request.turn + '\0' + request.step : ''
+    if (key !== '') {
+      const _entry: { system: string; toolsCount: number; model?: string; provider?: string; prompt: ConversationPromptSnapshot } = {
+        system: request.prompt.system,
+        toolsCount: request.prompt.tools.length,
+        prompt: request.prompt,
+      }
+      if (request.provenance?.model !== undefined) _entry.model = request.provenance.model
+      if (request.provenance?.provider !== undefined) _entry.provider = request.provenance.provider
+      promptByStep.set(key, _entry)
+    }
+  }
+
+  /** Accumulate messages in API request format: {role, content} plus tool_calls/tool_result. */
+  interface _MsgEntry { role: string; content: string }
+  const _msgAcc: _MsgEntry[] = []
+
   for (const entry of entries) {
     if (entry.kind === 'request') {
       const { request } = entry
@@ -379,6 +405,8 @@ export function deriveTrajectoryLayout(
     }
     const { node, nodeIndex: i } = entry
     if (node.kind === 'user') {
+      const userPreview = previewContent(node.content)
+      if (userPreview) _msgAcc.push({ role: 'user', content: userPreview })
       // user/message has no turn on the wire; enclose it in the next assistant
       // (or partial) turn, else open the turn after the last assistant.
       const turn = enclosingUserTurn(followingAssistants[i], partial, lastAssistantTurn)
@@ -415,6 +443,35 @@ export function deriveTrajectoryLayout(
       continue
     }
     if (node.kind === 'assistant') {
+      const promptKey = node.step > 0 ? node.turn + '\0' + node.step : ''
+      const promptInfo = promptByStep.get(promptKey)
+      if (promptInfo !== undefined) {
+        if (promptInfo.system) _msgAcc.unshift({ role: 'system', content: promptInfo.system })
+        const modelLabel = promptInfo.model ?? promptInfo.provider ?? t('record.noContent')
+        const toolsLabel = promptInfo.toolsCount > 0 ? ' ' + t('column.tools') + ' ' + promptInfo.toolsCount : ''
+        pushStep(node.turn, node.step, [{
+          absTime: finiteTime(node.time),
+          cell: {
+            index: ++index,
+            kind: 'request',
+            text: modelLabel + toolsLabel,
+            sourceSeq: node.seq,
+            inputDetail: buildLlmRequestInput(promptInfo, _msgAcc),
+            promptDetail: promptInfo.prompt,
+            timeSeconds: 0,
+            startedAt: finiteTime(node.time),
+          },
+        }])
+      }
+      const asstText = node.blocks.filter((b): b is { kind: 'text'; text: string } => b.kind === 'text').map(b => b.text).join('\n')
+      const toolCalls = node.blocks.filter((b): b is { kind: 'tool-call'; callId: string; name: string; argsRaw: string } => b.kind === 'tool-call')
+      if (asstText || toolCalls.length > 0) {
+        let asstContent = asstText || ''
+        if (toolCalls.length > 0) {
+          asstContent += (asstContent ? '\n\n' : '') + '[Tool calls: ' + toolCalls.map((tc: { name: string }) => tc.name).join(', ') + ']'
+        }
+        _msgAcc.push({ role: 'assistant', content: asstContent })
+      }
       const laidList = withSubCalls(
         expandAssistant(node, index + 1, prevAbsTime, resultByCall, callStartById, callById, t),
         t,
@@ -428,6 +485,8 @@ export function deriveTrajectoryLayout(
       continue
     }
     if (node.kind === 'context') {
+      const ctxContent = previewContent(node.content)
+      if (ctxContent) _msgAcc.push({ role: 'user', content: ctxContent })
       const turn = enclosingUserTurn(followingAssistants[i], partial, lastAssistantTurn)
       pushMessage(turn, {
         absTime: finiteTime(node.time),
@@ -447,6 +506,10 @@ export function deriveTrajectoryLayout(
       continue
     }
     if (node.kind === 'tool-result') {
+      const _toolResultText = node.isError
+        ? (node.error?.code ?? 'error')
+        : ((node.content as Array<{ type: string; text?: string }>).find(b => b.type === 'text')?.text ?? '')
+      if (_toolResultText) _msgAcc.push({ role: 'tool', content: '[' + (node.call?.name ?? node.callId) + ']\n' + _toolResultText.slice(0, 500) })
       if (!emittedCallIds.has(node.callId)) {
         const toolName = node.call?.name
         const resultPreview = summarizeResult(node, t)
@@ -550,10 +613,42 @@ export function deriveTrajectoryLayout(
     ...standaloneCompactions.map(entry => toTurnModel(null, entry, t)),
   ].sort((left, right) => firstCellIndex(left) - firstCellIndex(right))
 }
+/** Format complete LLM request input: system + tools + accumulated messages. */
+function buildLlmRequestInput(
+  info: { system: string; toolsCount: number; model?: string; provider?: string; prompt: ConversationPromptSnapshot },
+  messages: { role: string; content: string }[],
+): string {
+  const out: string[] = []
+  out.push('{')
+  out.push('  "model": ' + JSON.stringify(info.model ?? info.provider ?? '-') + ',')
+  out.push('  "messages": [')
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i] as { role: string; content: string }
+    const content = m.content.length > 1000 ? m.content.slice(0, 1000) + '... [truncated]' : m.content
+    out.push('    {"role": ' + JSON.stringify(m.role) + ', "content": ' + JSON.stringify(content) + '},')
+  }
+  out.push('  ],')
+  if (info.toolsCount > 0) {
+    out.push('  "tools": [')
+    for (let j = 0; j < info.prompt.tools.length; j++) {
+      const t = info.prompt.tools[j] as { name: string; description?: string; parameters?: unknown }
+      const desc = (t.description ?? '').replace(/\n/g, ' ').slice(0, 200)
+      out.push('    {"type": "function", "function": {"name": ' + JSON.stringify(t.name) + ', "description": ' + JSON.stringify(desc) + '}},')
+    }
+    out.push('  ],')
+  }
+  const cfg = info.prompt.config
+  if (cfg) {
+    if (typeof cfg.temperature === 'number') out.push('  "temperature": ' + cfg.temperature + ',')
+    if (typeof cfg.maxTokens === 'number') out.push('  "max_tokens": ' + cfg.maxTokens + ',')
+  }
+  out.push('}')
+  let result = out.join('\n')
+  result = result.replace(/,(\s*[}\]])/g, '$1')
+  return result
+}
 
 /**
- * Append the changing in-flight assistant cells to a stable finalized layout.
- * @param turns - Finalized layout derived with an empty-block partial anchor.
  * @param partial - Current in-flight assistant projection.
  * @param lastIndex - Highest cell index in the finalized layout.
  * @param t - Trajectory locale translator.
@@ -653,7 +748,7 @@ function groupDescription(
   t: TrajectoryTranslate,
 ): string | undefined {
   const parts: string[] = []
-  // Tool rows contribute start (absTime) and end (start + own duration) so a
+  // Tool rows contribute start (absTime) && end (start + own duration) so a
   // single Tool cell still spans call→result for the group wall clock.
   const times: number[] = []
   for (const l of laid) {
@@ -760,7 +855,7 @@ function expandAssistant(
   out.push({ absTime: nodeAbs, cell: message })
 
   for (const block of node.blocks) {
-    // Text and reasoning belong to the one Assistant record emitted above.
+    // Text && reasoning belong to the one Assistant record emitted above.
     if (block.kind !== 'tool-call') continue
     const result = results.get(block.callId)
     const toolDuration = streaming || result === undefined
@@ -1043,7 +1138,7 @@ function expandSubCalls(
           }
           : {}),
         // The code-dispatch start/settle pair carries per-sub-call wall time;
-        // a running (unsettled) or pre-pair log entry shows the em dash.
+        // a running (unsettled) || pre-pair log entry shows the em dash.
         timeSeconds: settled ? durationSeconds(sub.time, sub.callTime) : null,
         startedAt: settled
           ? finiteTime(sub.callTime)

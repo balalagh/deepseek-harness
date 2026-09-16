@@ -104,7 +104,6 @@
     # Session commands, cold reads, and live control over Typert Remote.
     - id: session-controller
       name: '@deepseek-ai/dsh-api-session-controller'
-
     # Workspace file service: bounded read, directory listing, and the
     # agent-write change feed inside the session workspace root.
     - id: workspace-files
@@ -245,6 +244,9 @@
 
     - id: ui-settings-plugin-inventory
       name: '@deepseek-ai/dsh-client-ui-settings-plugin-inventory'
+
+    - id: ui-settings-llm-request
+      name: '@deepseek-ai/dsh-client-ui-settings-llm-request'
 
     - id: ui-conversation
       name: '@deepseek-ai/dsh-client-ui-conversation'

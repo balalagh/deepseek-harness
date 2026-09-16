@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM 请求 - 设置</title>
+<style>
+  :root {
+    --bg-overlay: rgba(0, 0, 0, 0.5);
+    --bg-panel: #1e1e2e;
+    --bg-nav: #181825;
+    --bg-content: #1e1e2e;
+    --bg-hover: #313244;
+    --bg-active: #45475a;
+    --bg-code: #11111b;
+    --border: #313244;
+    --text-primary: #cdd6f4;
+    --text-secondary: #a6adc8;
+    --text-muted: #6c7086;
+    --accent: #89b4fa;
+    --accent-hover: #74c7ec;
+    --green: #a6e3a1;
+    --yellow: #f9e2af;
+    --red: #f38ba8;
+    --mauve: #cba6f7;
+    --peach: #fab387;
+    --teal: #94e2d5;
+    --pink: #f5c2e7;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+    background: #11111b;
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .overlay {
+    width: 100%;
+    height: 100%;
+  }
+
+  .panel {
+    width: 100vw;
+    height: 100vh;
+    background: var(--bg-panel);
+    display: flex;
+    overflow: hidden;
+  }
+
+  .nav {
+    width: 220px;
+    min-width: 220px;
+    background: var(--bg-nav);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .nav-title {
+    padding: 20px 20px 16px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .nav-title svg {
+    width: 18px;
+    height: 18px;
+    color: var(--accent);
+  }
+
+  .nav-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 8px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+    margin-bottom: 2px;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+  }
+
+  .nav-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .nav-item.active {
+    background: var(--bg-active);
+    color: var(--accent);
+  }
+
+  .nav-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  .nav-back {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-muted);
+    transition: color 0.15s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+  }
+
+  .nav-back:hover { color: var(--text-secondary); }
+  .nav-back svg { width: 14px; height: 14px; }
+
+  .content-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .content-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .content-header h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .header-controls select {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    max-width: 260px;
+  }
+
+  .content-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .section-header h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .section-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+
+  .char-count {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--bg-hover);
+    color: var(--text-muted);
+  }
+
+  .code-block {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 12.5px;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-secondary);
+    overflow-x: auto;
+    tab-size: 2;
+    max-height: 500px;
+    overflow-y: auto;
+  }
+
+  .code-block::-webkit-scrollbar { width: 6px; }
+  .code-block::-webkit-scrollbar-track { background: transparent; }
+  .code-block::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .tool-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tool-card {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .tool-card-header {
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .tool-card-header:hover { background: var(--bg-hover); }
+
+  .tool-card-name {
+    font-family: 'Cascadia Code', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .tool-card-desc {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    max-width: 500px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tool-card-toggle {
+    color: var(--text-muted);
+    font-size: 16px;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+  }
+
+  .tool-card-toggle.open { transform: rotate(180deg); }
+
+  .tool-card-body {
+    padding: 0 14px 14px;
+    display: none;
+  }
+
+  .tool-card-body.open { display: block; }
+
+  .tool-card-body pre {
+    background: var(--bg-nav);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: 'Cascadia Code', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .message-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .msg-block {
+    border-left: 3px solid var(--border);
+    padding: 12px 16px;
+    background: var(--bg-code);
+    border-radius: 0 8px 8px 0;
+  }
+
+  .msg-block.user { border-left-color: var(--green); }
+  .msg-block.assistant { border-left-color: var(--mauve); }
+  .msg-block.tool_call { border-left-color: var(--yellow); }
+  .msg-block.tool_result { border-left-color: var(--peach); }
+
+  .msg-role {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .msg-block.user .msg-role { color: var(--green); }
+  .msg-block.assistant .msg-role { color: var(--mauve); }
+  .msg-block.tool_call .msg-role { color: var(--yellow); }
+  .msg-block.tool_result .msg-role { color: var(--peach); }
+
+  .msg-text {
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .msg-text.truncated { max-height: 120px; }
+
+  .msg-expand {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--accent);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+  }
+
+  .msg-expand:hover { text-decoration: underline; }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-muted);
+    gap: 8px;
+  }
+
+  .empty-state svg { width: 40px; height: 40px; opacity: 0.3; }
+  .empty-state p { font-size: 14px; }
+
+  .stats-bar {
+    display: flex;
+    gap: 16px;
+    padding: 12px 0;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .search-box {
+    width: 100%;
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    margin-bottom: 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text-muted); }
+
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-muted);
+    font-size: 14px;
+    gap: 10px;
+  }
+
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 768px) {
+    .panel { flex-direction: column; height: 90vh; }
+    .nav { width: 100%; min-width: unset; flex-direction: row; border-right: none; border-bottom: 1px solid var(--border); }
+    .nav-title { padding: 12px 16px; }
+    .nav-list { display: flex; overflow-x: auto; padding: 0 8px; gap: 4px; }
+    .nav-item { white-space: nowrap; }
+    .nav-back { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="overlay">
+  <div class="panel">
+    <nav class="nav">
+      <div class="nav-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15l-2-2h-4l-2 2v4h4l2-2h4l2 2h4v-4l-2-2h-4z"/><circle cx="12" cy="9" r="3"/></svg>
+        LLM 请求
+      </div>
+      <div class="nav-list" id="navList">
+        <button class="nav-item active" data-section="system-prompt" onclick="selectSection('system-prompt')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          System Prompt
+        </button>
+        <button class="nav-item" data-section="persona-prefix" onclick="selectSection('persona-prefix')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Persona Prefix
+        </button>
+        <button class="nav-item" data-section="runtime-context" onclick="selectSection('runtime-context')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Runtime Context
+        </button>
+        <button class="nav-item" data-section="skills-list" onclick="selectSection('skills-list')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Skills List
+        </button>
+        <button class="nav-item" data-section="tools" onclick="selectSection('tools')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+          Tools
+        </button>
+        <button class="nav-item" data-section="messages" onclick="selectSection('messages')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          Messages
+        </button>
+      </div>
+      <button class="nav-back" onclick="window.location.href='/'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        返回 Session 查看器
+      </button>
+    </nav>
+
+    <div class="content-area">
+      <div class="content-header">
+        <h2 id="contentTitle">System Prompt</h2>
+        <div class="header-controls">
+          <select id="sessionSelect" onchange="onSessionChange()">
+            <option value="">选择 Session...</option>
+          </select>
+          <select id="requestSelect" onchange="onRequestChange()">
+            <option value="">选择请求...</option>
+          </select>
+        </div>
+      </div>
+      <div class="content-body" id="contentBody">
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <p>请先选择一个 Session</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let sessions = [];
+  let currentRequests = [];
+  let currentRequest = null;
+  let currentSection = 'system-prompt';
+
+  const sectionTitles = {
+    'system-prompt': 'System Prompt',
+    'persona-prefix': 'Persona Prefix',
+    'runtime-context': 'Runtime Context',
+    'skills-list': 'Skills List',
+    'tools': 'Tools',
+    'messages': 'Messages'
+  };
+
+  const sectionDescriptions = {
+    'system-prompt': '系统提示词，定义 AI 的身份、能力和行为准则。由多个插件按优先级拼接而成。',
+    'persona-prefix': '人格前缀，在系统提示词开头定义的 AI 角色描述。通常包含编码风格和工作方式指引。',
+    'runtime-context': '运行时上下文，包含当前会话的沙箱模式、审批策略、工作目录等环境信息。',
+    'skills-list': '技能列表，包含所有可用的 SKILL.md 文件索引，定义 AI 可以使用的能力和触发条件。',
+    'tools': '工具定义列表，包含所有注册的工具名称、描述和 JSON Schema 参数定义。这些工具定义会被直接发送给 LLM。',
+    'messages': '对话消息流，包含用户输入、AI 回复、工具调用和工具结果的完整对话历史。'
+  };
+
+  async function init() {
+    try {
+      const res = await fetch('/api/sessions');
+      sessions = await res.json();
+      const select = document.getElementById('sessionSelect');
+      select.innerHTML = '<option value="">选择 Session...</option>' +
+        sessions.map((s, i) => {
+          const date = new Date(s.modified).toLocaleString('zh-CN');
+          const workspace = s.workspace.replace(/^--/, '').replace(/--$/, '');
+          return '<option value="' + i + '">' + escapeHtml(workspace) + ' / ' + s.sessionId.substring(0, 8) + ' (' + date + ')</option>';
+        }).join('');
+    } catch (err) {
+      document.getElementById('contentBody').innerHTML = '<div class="empty-state"><p>加载失败: ' + err.message + '</p></div>';
+    }
+  }
+
+  async function onSessionChange() {
+    const idx = document.getElementById('sessionSelect').value;
+    if (idx === '') {
+      currentRequests = [];
+      currentRequest = null;
+      renderContent();
+      return;
+    }
+    const session = sessions[idx];
+    document.getElementById('contentBody').innerHTML = '<div class="loading"><div class="spinner"></div>正在加载 LLM 请求数据...</div>';
+    try {
+      const res = await fetch('/api/llm-request?path=' + encodeURIComponent(session.path));
+      currentRequests = await res.json();
+      const reqSelect = document.getElementById('requestSelect');
+      reqSelect.innerHTML = '<option value="">选择请求...</option>' +
+        currentRequests.map((r, i) => {
+          const msgCount = r.messages ? r.messages.length : 0;
+          const toolCount = r.tools ? r.tools.length : 0;
+          return '<option value="' + i + '">#' + r.seq + ' ' + (r.model || '?') + ' | ' + toolCount + ' tools | ' + msgCount + ' msgs</option>';
+        }).join('');
+      if (currentRequests.length > 0) {
+        reqSelect.value = '0';
+        currentRequest = currentRequests[0];
+        renderContent();
+      } else {
+        document.getElementById('contentBody').innerHTML = '<div class="empty-state"><p>该 Session 没有 LLM 请求记录</p></div>';
+      }
+    } catch (err) {
+      document.getElementById('contentBody').innerHTML = '<div class="empty-state"><p>加载失败: ' + err.message + '</p></div>';
+    }
+  }
+
+  function onRequestChange() {
+    const idx = document.getElementById('requestSelect').value;
+    currentRequest = idx === '' ? null : currentRequests[parseInt(idx)];
+    renderContent();
+  }
+
+  function selectSection(section) {
+    currentSection = section;
+    document.querySelectorAll('.nav-item').forEach(function(el) {
+      el.classList.toggle('active', el.dataset.section === section);
+    });
+    document.getElementById('contentTitle').textContent = sectionTitles[section];
+    renderContent();
+  }
+
+  function renderContent() {
+    var body = document.getElementById('contentBody');
+    if (!currentRequest) {
+      body.innerHTML = '<div class="empty-state"><p>请先选择一个 Session 和请求</p></div>';
+      return;
+    }
+
+    var r = currentRequest;
+    var html = '';
+
+    switch (currentSection) {
+      case 'system-prompt':
+        html = renderCodeSection(r.systemPrompt || '(empty)');
+        break;
+      case 'persona-prefix':
+        html = renderCodeSection(r.personaPrefix || '(未在 system prompt 中找到 persona prefix)');
+        break;
+      case 'runtime-context':
+        html = renderCodeSection(r.runtimeContext || '(empty)');
+        break;
+      case 'skills-list':
+        html = renderCodeSection(r.skillsList || '(empty)');
+        break;
+      case 'tools':
+        html = renderTools(r.tools || []);
+        break;
+      case 'messages':
+        html = renderMessages(r.messages || []);
+        break;
+    }
+
+    var statsHtml = '<div class="stats-bar">' +
+      '<div class="stat"><div class="stat-value">' + (r.systemPrompt || '').length.toLocaleString() + '</div><div class="stat-label">System Prompt</div></div>' +
+      '<div class="stat"><div class="stat-value">' + (r.personaPrefix || '').length.toLocaleString() + '</div><div class="stat-label">Persona</div></div>' +
+      '<div class="stat"><div class="stat-value">' + (r.runtimeContext || '').length.toLocaleString() + '</div><div class="stat-label">Runtime</div></div>' +
+      '<div class="stat"><div class="stat-value">' + (r.skillsList || '').length.toLocaleString() + '</div><div class="stat-label">Skills</div></div>' +
+      '<div class="stat"><div class="stat-value">' + (r.tools || []).length + '</div><div class="stat-label">Tools</div></div>' +
+      '<div class="stat"><div class="stat-value">' + (r.messages || []).length + '</div><div class="stat-label">Messages</div></div>' +
+      '</div>';
+
+    body.innerHTML = '<div class="section-header"><h3>' + sectionTitles[currentSection] + '</h3><span class="char-count">' + getSectionCharCount() + '</span></div>' +
+      '<p class="section-desc">' + sectionDescriptions[currentSection] + '</p>' +
+      statsHtml + html;
+
+    body.querySelectorAll('.tool-card-header').forEach(function(header) {
+      header.addEventListener('click', function() {
+        var card = header.closest('.tool-card');
+        var toggle = card.querySelector('.tool-card-toggle');
+        var content = card.querySelector('.tool-card-body');
+        toggle.classList.toggle('open');
+        content.classList.toggle('open');
+      });
+    });
+
+    body.querySelectorAll('.msg-expand').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var text = btn.previousElementSibling;
+        text.classList.toggle('truncated');
+        btn.textContent = text.classList.contains('truncated') ? '展开全部' : '收起';
+      });
+    });
+  }
+
+  function getSectionCharCount() {
+    if (!currentRequest) return '0';
+    var r = currentRequest;
+    switch (currentSection) {
+      case 'system-prompt': return (r.systemPrompt || '').length.toLocaleString() + ' chars';
+      case 'persona-prefix': return (r.personaPrefix || '').length.toLocaleString() + ' chars';
+      case 'runtime-context': return (r.runtimeContext || '').length.toLocaleString() + ' chars';
+      case 'skills-list': return (r.skillsList || '').length.toLocaleString() + ' chars';
+      case 'tools': return (r.tools || []).length + ' 个工具';
+      case 'messages': return (r.messages || []).length + ' 条消息';
+      default: return '0';
+    }
+  }
+
+  function renderCodeSection(text) {
+    var escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return '<div class="code-block">' + escaped + '</div>';
+  }
+
+  function renderTools(tools) {
+    if (!tools || tools.length === 0) {
+      return '<div class="empty-state"><p>该请求没有注册工具</p></div>';
+    }
+    var cards = tools.map(function(t) {
+      return '<div class="tool-card" data-name="' + (t.name || '').toLowerCase() + '">' +
+        '<div class="tool-card-header"><div>' +
+        '<div class="tool-card-name">' + escapeHtml(t.name || '(unnamed)') + '</div>' +
+        '<div class="tool-card-desc">' + escapeHtml(truncate(t.description || '', 80)) + '</div>' +
+        '</div><span class="tool-card-toggle">▼</span></div>' +
+        '<div class="tool-card-body"><pre>' + escapeHtml(JSON.stringify(t.parameters || {}, null, 2)) + '</pre></div>' +
+        '</div>';
+    }).join('');
+    return '<input class="search-box" type="text" placeholder="搜索工具名称..." oninput="filterTools(this.value)">' +
+      '<div class="tool-grid" id="toolGrid">' + cards + '</div>';
+  }
+
+  function filterTools(query) {
+    var q = query.toLowerCase();
+    document.querySelectorAll('.tool-card').forEach(function(card) {
+      card.style.display = card.dataset.name.indexOf(q) >= 0 ? '' : 'none';
+    });
+  }
+
+  function renderMessages(messages) {
+    if (!messages || messages.length === 0) {
+      return '<div class="empty-state"><p>该请求没有对话消息</p></div>';
+    }
+    var items = messages.map(function(m) {
+      var text = m.text || '';
+      var isLong = text.length > 300;
+      var extra = '';
+      if (m.toolCalls && m.toolCalls.length > 0) {
+        extra = '<div style="margin-top:8px;font-size:11px;color:var(--yellow)">工具调用: ' +
+          m.toolCalls.map(function(tc) { return tc.name; }).join(', ') + '</div>';
+      }
+      if (m.name) {
+        extra = '<div style="margin-top:4px;font-size:11px;color:var(--peach)">工具: ' +
+          escapeHtml(m.name) + (m.args ? ' | ' + escapeHtml(truncate(JSON.stringify(m.args), 100)) : '') + '</div>';
+      }
+      return '<div class="msg-block ' + m.role + '">' +
+        '<div class="msg-role">' + escapeHtml(m.role) + (m.role === 'tool_call' && m.name ? ' · ' + escapeHtml(m.name) : '') + '</div>' +
+        '<div class="msg-text' + (isLong ? ' truncated' : '') + '">' + escapeHtml(text) + '</div>' +
+        (isLong ? '<button class="msg-expand">展开全部</button>' : '') +
+        extra + '</div>';
+    }).join('');
+    return '<div class="message-list">' + items + '</div>';
+  }
+
+  function truncate(s, max) {
+    if (!s || s.length <= max) return s || '';
+    return s.substring(0, max) + '...';
+  }
+
+  function escapeHtml(s) {
+    return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  init().then(function() {
+    var params = new URLSearchParams(window.location.search);
+    var sessionPath = params.get('session');
+    if (sessionPath) {
+      var idx = sessions.findIndex(function(s) { return s.path === sessionPath; });
+      if (idx >= 0) {
+        document.getElementById('sessionSelect').value = idx.toString();
+        onSessionChange();
+      }
+    }
+  });
+</script>
+</body>
+</html>

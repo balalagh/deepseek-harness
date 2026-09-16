@@ -14,6 +14,7 @@ export type TrajectoryCellKind =
   | 'message'
   | 'tool'
   | 'subtool'
+  | 'request'
 
 /** Recorded inputs needed to derive assistant TTFT and decode throughput. */
 export interface AssistantMetricDetail {
