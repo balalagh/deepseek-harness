@@ -280,9 +280,9 @@ export function deriveTrajectoryLayout(
 
   /** Look up request prompt data for an assistant node by turn/step. */
   const promptByStep = new Map<string, {
-    system: string, toolsCount: number,
-    model?: string, provider?: string,
-    prompt: ConversationPromptSnapshot,
+    system: string, toolsCount: number
+    model?: string, provider?: string
+    prompt: ConversationPromptSnapshot
   }>()
   for (const request of requests) {
     if (request.purpose !== 'assistant' || request.prompt === undefined) continue
@@ -446,7 +446,7 @@ export function deriveTrajectoryLayout(
       const promptKey = node.step > 0 ? node.turn + '\0' + node.step : ''
       const promptInfo = promptByStep.get(promptKey)
       if (promptInfo !== undefined) {
-        if (promptInfo.system) _msgAcc.unshift({ role: 'system', content: promptInfo.system })
+        // system prompt emitted by buildLlmRequestInput to avoid duplicates
         const modelLabel = promptInfo.model ?? promptInfo.provider ?? t('record.noContent')
         const toolsLabel = promptInfo.toolsCount > 0 ? ' ' + t('column.tools') + ' ' + promptInfo.toolsCount : ''
         pushStep(node.turn, node.step, [{
@@ -472,6 +472,8 @@ export function deriveTrajectoryLayout(
         }
         _msgAcc.push({ role: 'assistant', content: asstContent })
       }
+      // Append tool-call args for accurate request reconstruction
+      for (const tc of toolCalls) _msgAcc.push({ role: 'assistant', content: '[tool_call: ' + tc.name + '] ' + tc.argsRaw })
       const laidList = withSubCalls(
         expandAssistant(node, index + 1, prevAbsTime, resultByCall, callStartById, callById, t),
         t,
@@ -506,10 +508,10 @@ export function deriveTrajectoryLayout(
       continue
     }
     if (node.kind === 'tool-result') {
-      const _toolResultText = node.isError
+      const toolResultText = node.isError
         ? (node.error?.code ?? 'error')
-        : ((node.content as Array<{ type: string; text?: string }>).find(b => b.type === 'text')?.text ?? '')
-      if (_toolResultText) _msgAcc.push({ role: 'tool', content: '[' + (node.call?.name ?? node.callId) + ']\n' + _toolResultText.slice(0, 500) })
+        : (node.content as Array<{ type: string; text?: string }>).map(b => b.type === 'text' ? b.text : '').filter(Boolean).join('\n')
+      if (toolResultText) _msgAcc.push({ role: 'tool', content: '[' + (node.call?.name ?? node.callId) + ']\n' + toolResultText.slice(0, 2000) })
       if (!emittedCallIds.has(node.callId)) {
         const toolName = node.call?.name
         const resultPreview = summarizeResult(node, t)
@@ -616,15 +618,21 @@ export function deriveTrajectoryLayout(
 /** Format complete LLM request input: system + tools + accumulated messages. */
 function buildLlmRequestInput(
   info: { system: string; toolsCount: number; model?: string; provider?: string; prompt: ConversationPromptSnapshot },
-  messages: { role: string; content: string }[],
+  messages: readonly { role: string; content: string }[],
 ): string {
   const out: string[] = []
   out.push('{')
   out.push('  "model": ' + JSON.stringify(info.model ?? info.provider ?? '-') + ',')
   out.push('  "messages": [')
+  // Emit system prompt as the first message (from info to avoid duplicates)
+  if (info.system) {
+    out.push('    {"role": "system", "content": ' + JSON.stringify(info.system) + '},')
+  }
   for (let i = 0; i < messages.length; i++) {
-    const m = messages[i] as { role: string; content: string }
-    const content = m.content.length > 1000 ? m.content.slice(0, 1000) + '... [truncated]' : m.content
+    const m = messages[i]!
+    // Skip system message from _msgAcc if we already emitted one above
+    if (i === 0 && m.role === 'system' && info.system) continue
+    const content = m.content.length > 5000 ? m.content.slice(0, 5000) + '... [truncated]' : m.content
     out.push('    {"role": ' + JSON.stringify(m.role) + ', "content": ' + JSON.stringify(content) + '},')
   }
   out.push('  ],')
@@ -632,14 +640,19 @@ function buildLlmRequestInput(
     out.push('  "tools": [')
     for (let j = 0; j < info.prompt.tools.length; j++) {
       const t = info.prompt.tools[j] as { name: string; description?: string; parameters?: unknown }
-      const desc = (t.description ?? '').replace(/\n/g, ' ').slice(0, 200)
-      out.push('    {"type": "function", "function": {"name": ' + JSON.stringify(t.name) + ', "description": ' + JSON.stringify(desc) + '}},')
+      const desc = t.description ?? ''
+      const tParams = t.parameters !== undefined ? ", \"parameters\": " + JSON.stringify(t.parameters) : ""
+      out.push('    {"type": "function", "function": {"name": ' + JSON.stringify(t.name) + ', "description": ' + JSON.stringify(desc) + tParams + '}},')
     }
     out.push('  ],')
   }
   const cfg = info.prompt.config
   if (cfg) {
     if (typeof cfg.temperature === 'number') out.push('  "temperature": ' + cfg.temperature + ',')
+    if (cfg.reasoningEffort !== undefined) out.push('  "reasoning_effort": ' + JSON.stringify(cfg.reasoningEffort) + ',')
+    if (cfg.thinking !== undefined) out.push('  "thinking": ' + JSON.stringify(cfg.thinking) + ',')
+    if (cfg.purpose !== undefined) out.push('  "purpose": ' + JSON.stringify(cfg.purpose) + ',')
+    if (cfg.stop !== undefined && cfg.stop.length > 0) out.push('  "stop": ' + JSON.stringify(cfg.stop) + ',')
     if (typeof cfg.maxTokens === 'number') out.push('  "max_tokens": ' + cfg.maxTokens + ',')
   }
   out.push('}')
@@ -1242,3 +1255,4 @@ function previewContentProperty(
   const previewMarkdown = previewContent(content)
   return previewMarkdown === undefined ? {} : { previewMarkdown }
 }
+
