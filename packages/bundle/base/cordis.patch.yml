@@ -466,6 +466,7 @@
       name: '@deepseek-ai/dsh-system-prompt'
       config:
         personaPrefix: ''
+        includeHarnessIdentity: false
 
     # Agents created at startup. The base stays empty; raw overlays may create
     # agents, while Web creates sessions on client request.
