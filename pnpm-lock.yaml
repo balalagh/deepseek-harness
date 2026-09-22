@@ -286,6 +286,9 @@ importers:
       '@deepseek-ai/dsh-tool-fs-search':
         specifier: workspace:^
         version: link:../../packages/fs/tool-fs-search
+      '@deepseek-ai/dsh-tool-gaokao-query':
+        specifier: workspace:^
+        version: link:../../packages/gaokao/tool-gaokao-query
       '@deepseek-ai/dsh-tool-goal':
         specifier: workspace:^
         version: link:../../packages/goal/tool-goal
@@ -1861,6 +1864,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-settings-general':
         specifier: workspace:^
         version: link:../../client/ui-settings-general
+      '@deepseek-ai/dsh-client-ui-settings-llm-request':
+        specifier: workspace:^
+        version: link:../../client/ui-settings-llm-request
       '@deepseek-ai/dsh-client-ui-settings-models':
         specifier: workspace:^
         version: link:../../client/ui-settings-models
@@ -6151,6 +6157,22 @@ importers:
       '@deepseek-ai/dsh-system-prompt':
         specifier: workspace:^
         version: link:../../core/system-prompt
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:^
+        version: link:../../core/tools
+
+  packages/gaokao/tool-gaokao-query:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-agent':
+        specifier: workspace:^
+        version: link:../../core/agent
       '@deepseek-ai/dsh-tools':
         specifier: workspace:^
         version: link:../../core/tools
