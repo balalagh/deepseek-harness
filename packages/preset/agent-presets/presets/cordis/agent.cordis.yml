@@ -253,3 +253,7 @@
 
 - id: tool-skill
   name: '@deepseek-ai/dsh-tool-skill'
+
+# ── 高考数据查询工具 ──────────────────────────────────────
+- id: tool-gaokao-query
+  name: '@deepseek-ai/dsh-tool-gaokao-query'
