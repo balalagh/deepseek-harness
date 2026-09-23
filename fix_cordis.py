@@ -64,8 +64,8 @@
 # unavailable" while these controls sat in the catalog. The registry is keyed by
 # owning agent anyway, so one host instance serves every session. What a preset
 # chooses is whether its agent can collect and stop background work at all.
-- id: tool-jobs
   disabled: true
+- id: tool-jobs
   name: '@deepseek-ai/dsh-tool-jobs'
 
 # ── goals ───────────────────────────────────────────────────────────────────
@@ -73,12 +73,12 @@
 # The goal service and session driver stay on the host plane, where the Gateway
 # can resolve them. The human command and model-facing tool register into this
 # preset's scoped layers.
-- id: command-goal
   disabled: true
+- id: command-goal
   name: '@deepseek-ai/dsh-command-goal'
 
-- id: tool-goal
   disabled: true
+- id: tool-goal
   name: '@deepseek-ai/dsh-tool-goal'
 
 # ── plan mode ───────────────────────────────────────────────────────────────
@@ -127,15 +127,12 @@
     toolResultPruner: true
   config:
     - id: compaction-basic
-      disabled: true
       name: '@deepseek-ai/dsh-compaction-basic'
 
     - id: command-compact
-      disabled: true
       name: '@deepseek-ai/dsh-command-compact'
 
     - id: tool-result-pruner
-      disabled: true
       name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
       config:
         thresholdChars: 8192
@@ -160,15 +157,12 @@
     workflowEngine: true
   config:
     - id: tool-subagent-control
-      disabled: true
       name: '@deepseek-ai/dsh-tool-subagent-control'
 
     - id: tool-subagent-list-agents
-      disabled: true
       name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
 
     - id: tool-subagent
-      disabled: true
       name: '@deepseek-ai/dsh-tool-subagent'
       config:
         provider: spawn
@@ -181,7 +175,6 @@
     # keeps fork continuable; parent and child inherit the same messaging tool,
     # while the parent id and return guidance follow the inherited history.
     - id: tool-subagent-fork
-      disabled: true
       name: '@deepseek-ai/dsh-tool-subagent'
       config:
         provider: fork
@@ -209,17 +202,14 @@
         maxDepth: provider-managed
 
     - id: workflow-worker-thread
-      disabled: true
       name: '@deepseek-ai/dsh-workflow-worker-thread'
       config:
         provider: spawn
 
     - id: tool-workflow
-      disabled: true
       name: '@deepseek-ai/dsh-tool-workflow'
 
     - id: tool-ralph
-      disabled: true
       name: '@deepseek-ai/dsh-tool-ralph'
       config:
         subagentProvider: spawn
@@ -237,6 +227,7 @@
 
 # The `web` service and its search provider stay in the host composition; only
 # the model-facing tool is per-session.
+  disabled: true
 - id: tool-web
   name: '@deepseek-ai/dsh-tool-web'
   config:

@@ -714,10 +714,12 @@ export class Session implements SessionFace {
     const awaitingFirstTurn = this.firstPromptPendingTurn
     if (event.type === 'turn/start') this.firstPromptPendingTurn = false
     const queueChanged = this.queueMirror.acceptDurable(event)
-    this.eventSource.append(entry)
-    // After the feed append: the conversation assembly's animation frame is
-    // registered by the feed subscribers above, so the echo-retirement frame
-    // scheduled here always runs after the durable node became renderable.
+    if (event.type === 'user/message' && this.submissionSettlements.size > 0) {
+      const current = this.eventSource.getSnapshot().entries
+      this.eventSource.replace([...current, entry], this.hasMore)
+    } else {
+      this.eventSource.append(entry)
+    }
     this.observeSubmissionEvent(event)
     return queueChanged || awaitingFirstTurn !== this.firstPromptPendingTurn
   }
