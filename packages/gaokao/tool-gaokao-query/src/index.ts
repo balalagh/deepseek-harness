@@ -54,7 +54,7 @@ export function apply(ctx: Context, config: Config): void {
     output: {
       schema: {
         type: 'object',
-        additionalProperties: false,
+        additionalProperties: true,
         properties: {
           province: { type: 'string' },
           year: { type: 'integer' },
@@ -64,7 +64,7 @@ export function apply(ctx: Context, config: Config): void {
             required: true,
             items: {
               type: 'object',
-              additionalProperties: false,
+              additionalProperties: true,
               properties: {
                 province: { type: 'string' },
                 year: { type: 'integer' },
@@ -81,7 +81,7 @@ export function apply(ctx: Context, config: Config): void {
         return [{ type: 'text',
           text: `${value.province} ${value.year}年控制线：\n`
             + (value.data as any[]).map((r: any) =>
-              `${r.subject} ${r.batch}: ${r.score}分 (${r.rank})`
+              `${r.subject} ${r.batch}: ${r.score}分 (${r.rank})`,
             ).join('\n'),
         }]
       },
@@ -114,19 +114,67 @@ export function apply(ctx: Context, config: Config): void {
       admission_score_max: { type: 'integer', description: '分数最大值' },
       admission_rank_min: { type: 'integer', description: '位次最小值' },
       admission_rank_max: { type: 'integer', description: '位次最大值' },
-      fields: { type: 'string', description: '需要返回的字段，逗号分隔，不传则返回全部' },
+      fields: { type: 'string', description: '可选字段，逗号分隔，不传则返回全部。可选：school_province(学校省份),school_city(学校城市),school_name(学校),school_code(学校代码),year(年份)undergraduate_type(大学类型),major_group_code(专业组代码),major_code(专业代码),major_name(专业名),parsed_major_name(解析专业名),major_category(专业类),campus(校区),subject_requirement(选科要求)study_duration(学制),major_note(备注),sino_foreign(中外合办),tuition_fee(学费),parsed_tuition_fee(解析学费),enrollment_plan(招生计划),admission_score(录取分数),admission_rank(录取位次)' },
     },
     output: {
-      schema: { type: 'object', additionalProperties: false, properties: {
+      schema: { type: 'object', additionalProperties: true, properties: {
         count: { type: 'integer' },
-        data: { type: 'array', required: true, items: { type: 'object', additionalProperties: false } },
+        data: { type: 'array', required: true, items: { type: 'object', additionalProperties: true, properties: {
+          school_name: { type: 'string' },
+          major_name: { type: 'string' },
+          admission_score: { type: 'integer' },
+          admission_rank: { type: 'integer' },
+        } } },
       } },
       render(_args: unknown, value: any): ContentBlock[] {
-        return [{ type: 'text', text: `共 ${value.count} 条结果` }]
+        const args = _args as any
+        const isGroup = args.college_major_group === 1
+        const FIELD_LABELS: Record<string, string> = {
+          school_province: '学校省份',
+          school_city: '学校城市',
+          school_name: '学校',
+          school_code: '学校代码',
+          year: '年份',
+          undergraduate_type: '大学类型',
+          major_group_code: '专业组',
+          major_code: '专业代码',
+          major_name: '专业（类）',
+          parsed_major_name: '专业（类）包含专业',
+          major_category: '专业类',
+          campus: '校区',
+          subject_requirement: '选科要求',
+          study_duration: '学制',
+          major_note: '备注',
+          sino_foreign: '中外合办',
+          tuition_fee: '学费',
+          parsed_tuition_fee: '解析学费',
+          enrollment_plan: '招生计划',
+          admission_score: '分数',
+          admission_rank: '位次',
+        }
+        const fixedKeys = isGroup
+          ? ['school_name', 'major_group_code', 'major_code', 'major_name', 'parsed_major_name', 'admission_score', 'admission_rank']
+          : ['school_name', 'major_code', 'major_name', 'parsed_major_name', 'admission_score', 'admission_rank']
+        const requested: string[] = args.fields ? args.fields.split(',').map((s: string) => s.trim()).filter(Boolean) : []
+        const keys = requested.length > 0 ? [...new Set([...fixedKeys, ...requested])] : Object.keys(FIELD_LABELS)
+        const columns = keys.filter((k: string) => k in FIELD_LABELS).map((k: string) => ({ key: k, label: FIELD_LABELS[k] }))
+        const header = columns.map(c => c.label).join(' | ')
+        const rows = (value.data as any[]).map((r: any) =>
+          columns.map(c => r[c.key] ?? '').join(' | '))
+        const queryInfo = `查询条件: 省份=${args.exam_province} 选科=${args.subject} 模式=${isGroup ? '院校专业组' : '专业类+院校'} 年份=${args.year ?? '不限'}`
+        return [{ type: 'text', text: `${queryInfo}\n共 ${value.count} 条结果\n${header}\n${rows.join('\n')}` }]
       },
     },
     async execute(args: any, exec: any) {
-      return apiGet(base, '/api/college-admission', { ...args }, exec.signal) as any
+      const isGroup = args.college_major_group === 1
+      const fixedFields = isGroup
+        ? 'school_name,major_group_code,major_code,major_name,parsed_major_name,admission_score,admission_rank'
+        : 'school_name,major_code,major_name,parsed_major_name,admission_score,admission_rank'
+      const allFields = 'school_province,school_city,school_name,school_code,year,undergraduate_type,major_group_code,major_code,major_name,parsed_major_name,major_category,campus,subject_requirement,study_duration,major_note,sino_foreign,tuition_fee,parsed_tuition_fee,enrollment_plan,admission_score,admission_rank'
+      const mergedFields = args.fields
+        ? [...new Set([...fixedFields.split(','), ...(args.fields as string).split(',').map((s: string) => s.trim()).filter(Boolean)])].join(',')
+        : allFields
+      return apiGet(base, '/api/college-admission', { ...args, fields: mergedFields }, exec.signal) as any
     },
     presentCall: (args: any) =>
       ({ card: 'generic' as const, title: '院校录取数据查询', kind: 'other' as const, rawInput: args }),
@@ -143,14 +191,23 @@ export function apply(ctx: Context, config: Config): void {
       score: { type: 'integer', required: true, description: '要查询的分数' },
     },
     output: {
-      schema: { type: 'object', additionalProperties: false, properties: {
+      schema: { type: 'object', additionalProperties: true, properties: {
         province: { type: 'string' },
         year: { type: 'integer' },
         count: { type: 'integer' },
-        data: { type: 'array', required: true, items: { type: 'object', additionalProperties: false } },
+        data: { type: 'array', required: true, items: { type: 'object', additionalProperties: true, properties: {
+          score: { type: 'integer' },
+          segment_count: { type: 'integer' },
+          cumulative_count: { type: 'integer' },
+          province: { type: 'string' },
+          year: { type: 'integer' },
+          subject_combination: { type: 'string' },
+        } } },
       } },
       render(_args: unknown, value: any): ContentBlock[] {
-        return [{ type: 'text', text: `${value.province} ${value.year}年${value.data?.length || 0}条结果` }]
+        const rows = (value.data as any[]).map((r: any) =>
+          `${r.score}分: 本段${r.segment_count}人 / 累计${r.cumulative_count}人`)
+        return [{ type: 'text', text: `${value.province} ${value.year}年 一分一段：\n${rows.join('\n')}` }]
       },
     },
     async execute(args: any, exec: any) {
@@ -174,7 +231,7 @@ export function apply(ctx: Context, config: Config): void {
       year: { type: 'integer', required: true, description: '年份，仅支持 2026、2027' },
     },
     output: {
-      schema: { type: 'object', additionalProperties: false, properties: {
+      schema: { type: 'object', additionalProperties: true, properties: {
         province: { type: 'string' },
         year: { type: 'integer' },
         subject_mode: { type: 'integer' },
@@ -188,7 +245,7 @@ export function apply(ctx: Context, config: Config): void {
             + '选科模式：' + (value.subject_mode === 1 ? '3+1+2模式' : '3+3模式') + '\n'
             + '填报模式：' + (value.fill_mode === 'GROUP' ? '院校专业组模式' : '专业（类）+院校模式') + '\n'
             + '志愿数量：' + value.fill_count
-            + (value.group_major_count !== undefined ? '\n专业组内可填志愿数量：' + value.group_major_count : ''),
+            + (value.fill_mode === 'GROUP' && value.group_major_count !== undefined ? '\n专业组内可填志愿数量：' + value.group_major_count : ''),
         }]
       },
     },
