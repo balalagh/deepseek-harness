@@ -113,6 +113,8 @@ def province_control_line(
 
     results: list[dict] = []
     for row in rows:
+        # 未公布位次的省份控制线保留 rank 为 null：0 是一个真实位次，用它表示
+        # "未公布"会把缺失读成具体名次。
         # 历史类
         if row.get("history_score_line"):
             results.append({
@@ -121,7 +123,7 @@ def province_control_line(
                 "subject": "历史类",
                 "batch": "本科控制线",
                 "score": row["history_score_line"],
-                "rank": row.get("history_rank") or 0,
+                "rank": row.get("history_rank"),
             })
         if row.get("history_first_score_line"):
             results.append({
@@ -130,7 +132,7 @@ def province_control_line(
                 "subject": "历史类",
                 "batch": "一本控制线",
                 "score": row["history_first_score_line"],
-                "rank": row.get("history_first_rank") or 0,
+                "rank": row.get("history_first_rank"),
             })
         # 物理类
         if row.get("physics_score_line"):
@@ -140,7 +142,7 @@ def province_control_line(
                 "subject": "物理类",
                 "batch": "本科控制线",
                 "score": row["physics_score_line"],
-                "rank": row.get("physics_rank") or 0,
+                "rank": row.get("physics_rank"),
             })
         if row.get("physics_first_score_line"):
             results.append({
@@ -149,7 +151,7 @@ def province_control_line(
                 "subject": "物理类",
                 "batch": "一本控制线",
                 "score": row["physics_first_score_line"],
-                "rank": row.get("physics_first_rank") or 0,
+                "rank": row.get("physics_first_rank"),
             })
 
     return {"province": province, "year": year, "count": len(results), "data": results}
@@ -243,13 +245,31 @@ def college_admission(
         conditions.append("admission_rank <= %s")
         params.append(admission_rank_max)
 
+    # ── 选科过滤 ────────────────────────────────────────────────────────────
+    # 条件下推而不是取回后过滤：过滤必须发生在 LIMIT 之前，否则高分段不适用的
+    # 条目会占满窗口，把真正可报的条目挤掉（实测差两个数量级）。
+    # 这些列是 bit(1)，PyMySQL 返回 b'\x00'/b'\x01'，因此判定留给 SQL 的数值比较。
+    #
+    # 多科：入参是完整组合，未出现的科目即"没选"，该列一旦被要求（= 1）即不适用。
+    # 单科：入参只声明了一科，其余科目是"未知"而不是"没选"，因此只要求
+    #       "该科被要求"或"该条不要求任何科目"。
+    no_requirement = " AND ".join(
+        f"({db_field} IS NULL OR {db_field} = 0)" for db_field in SUBJECT_CN_TO_DB.values()
+    )
+    if len(user_subjects) == 1:
+        only_field = SUBJECT_CN_TO_DB[next(iter(user_subjects))]
+        conditions.append(f"({only_field} = 1 OR ({no_requirement}))")
+    else:
+        for cn, db_field in SUBJECT_CN_TO_DB.items():
+            if cn in user_subjects:
+                continue
+            conditions.append(f"({db_field} IS NULL OR {db_field} = 0)")
+
     where = " AND ".join(conditions)
     sql = f"""
         SELECT school_province, school_city, school_name, school_code, year,
                batch, undergraduate_type, major_group_code, major_code, major_name,
                parsed_major_name, major_category, campus, subject_requirement,
-               subject_physics, subject_chemistry, subject_biology,
-               subject_politics, subject_history, subject_geography, subject_technology,
                study_duration, major_note, sino_foreign, tuition_fee,
                parsed_tuition_fee, enrollment_plan, admission_score, admission_rank
         FROM col_college_admission
@@ -259,17 +279,6 @@ def college_admission(
     """
 
     rows = _query(sql, params)
-
-    # ── 选科过滤：用户选科的反集中存在任一选科要求=1则剔除 ──
-    filtered = []
-    for r in rows:
-        exclude = False
-        for cn, db_field in SUBJECT_CN_TO_DB.items():
-            if cn not in user_subjects and r.get(db_field) == 1:
-                exclude = True
-                break
-        if not exclude:
-            filtered.append(r)
 
     # ── 构造输出 ──
     base_fields = [
@@ -287,23 +296,9 @@ def college_admission(
     if extra_field:
         output_fields.insert(5, extra_field)
 
-    STRING_FIELDS = {"school_province", "school_city", "school_name", "school_code",
-                     "batch", "undergraduate_type", "major_code", "major_name",
-                     "parsed_major_name", "major_category", "campus", "subject_requirement",
-                     "major_note", "tuition_fee"}
-    NUM_FIELDS = {"study_duration", "parsed_tuition_fee"}
-
-    data = [
-        {
-            f: (r.get(f) or "")
-               if f in STRING_FIELDS
-               else (r.get(f) or 0)
-               if f in NUM_FIELDS
-               else (r.get(f) or 0)
-            for f in output_fields
-        }
-        for r in filtered
-    ]
+    # 数据库未收录的字段原样返回 None（JSON null）。分数、位次、招生计划等列可空，
+    # 而 0 是这些列上的真实取值，用它表示"没有数据"会把缺失读成一个具体数字。
+    data = [{f: r.get(f) for f in output_fields} for r in rows]
 
     if fields:
         field_list = [f.strip() for f in fields.split(",") if f.strip()]
