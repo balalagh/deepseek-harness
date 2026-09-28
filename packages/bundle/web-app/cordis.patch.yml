@@ -187,6 +187,13 @@
         # its literals, for example: ['app.internal', ...ctx.webRuntime.trustedHosts].
         trustedHosts: !!js ctx.webRuntime.trustedHosts
 
+    # The 高考 data-query microservice. Its row injects `webServer`, so Loader
+    # activates it only after the Web port above has bound; apply() then starts
+    # the uvicorn child and disposes it with this row. Idempotent across
+    # launches: an instance already answering /health is reused, not replaced.
+    - id: gaokao-api
+      name: '@deepseek-ai/dsh-gaokao-api'
+
     # Raw Blob and ReadableStream uploads run independently of Connection's
     # RPC and generation service.
     - id: file-upload

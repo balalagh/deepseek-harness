@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-28-gaokao-api-launch-on-web-bind.md
+2026-09-28-gaokao-api-launch-on-web-bind.md: 90ad56d2c53e5f97e4e8bb9ca0a096e6ac5d42eb
+2026-09-28-gaokao-api-launch-on-web-bind.zh.md: b2af1a848ad978b3d6579b1f706dc6aaafec2861
