@@ -7,26 +7,42 @@
   GET /api/score-segment          一分一段表
 
 启动: uvicorn main:app --host 127.0.0.1 --port 8901
+
+数据库连接信息全部来自同目录的 .env（变量名见 .env.example），仓库中不保留任何凭据。
 """
 
 from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 import pymysql
+from dotenv import load_dotenv
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-# ── 数据库配置（从环境变量读取，有合理默认值） ──────────────────
+# ── 数据库配置（只从环境变量读取，见同目录 .env / .env.example） ──
+
+ENV_FILE = Path(__file__).with_name(".env")
+load_dotenv(ENV_FILE)
+
+
+def _required_env(name: str) -> str:
+    """读取必填的数据库环境变量；缺失时立即失败，不回退到内置凭据。"""
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"[gaokao-api] 缺少环境变量 {name}：请在 {ENV_FILE} 中配置（可参考 .env.example）")
+    return value
+
 
 DB_CONFIG: dict[str, Any] = {
-    "host": os.getenv("GAOKAO_DB_HOST", "***REMOVED***"),
-    "port": int(os.getenv("GAOKAO_DB_PORT", "3306")),
-    "user": os.getenv("GAOKAO_DB_USER", "***REMOVED***"),
-    "password": os.getenv("GAOKAO_DB_PASSWORD", "***REMOVED***"),
-    "database": os.getenv("GAOKAO_DB_NAME", "college_application"),
+    "host": _required_env("GAOKAO_DB_HOST"),
+    "port": int(_required_env("GAOKAO_DB_PORT")),
+    "user": _required_env("GAOKAO_DB_USER"),
+    "password": _required_env("GAOKAO_DB_PASSWORD"),
+    "database": _required_env("GAOKAO_DB_NAME"),
     "charset": "utf8mb4",
     "cursorclass": pymysql.cursors.DictCursor,
     "connect_timeout": 10,

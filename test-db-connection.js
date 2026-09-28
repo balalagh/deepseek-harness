@@ -1,15 +1,30 @@
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import mysql from 'mysql2/promise';
+
+// 数据库连接信息与高考微服务共用同一份 .env，避免凭据在多处重复。
+const ENV_FILE = join(dirname(fileURLToPath(import.meta.url)), 'packages/gaokao/gaokao-api/.env');
+
+if (!existsSync(ENV_FILE)) {
+  throw new Error(`缺少 ${ENV_FILE}：请复制 packages/gaokao/gaokao-api/.env.example 为 .env 并填入数据库配置`);
+}
+process.loadEnvFile(ENV_FILE);
+
+for (const name of ['GAOKAO_DB_HOST', 'GAOKAO_DB_PORT', 'GAOKAO_DB_USER', 'GAOKAO_DB_PASSWORD', 'GAOKAO_DB_NAME']) {
+  if (!process.env[name]) throw new Error(`缺少环境变量 ${name}：请在 ${ENV_FILE} 中配置`);
+}
 
 async function testConnection() {
   console.log('Testing database connection...');
   
   try {
     const pool = mysql.createPool({
-      host: '***REMOVED***',
-      port: 3306,
-      user: '***REMOVED***',
-      password: '***REMOVED***',
-      database: 'college_application',
+      host: process.env.GAOKAO_DB_HOST,
+      port: Number(process.env.GAOKAO_DB_PORT),
+      user: process.env.GAOKAO_DB_USER,
+      password: process.env.GAOKAO_DB_PASSWORD,
+      database: process.env.GAOKAO_DB_NAME,
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
