@@ -127,15 +127,12 @@
     toolResultPruner: true
   config:
     - id: compaction-basic
-      disabled: true
       name: '@deepseek-ai/dsh-compaction-basic'
 
     - id: command-compact
-      disabled: true
       name: '@deepseek-ai/dsh-command-compact'
 
     - id: tool-result-pruner
-      disabled: true
       name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
       config:
         thresholdChars: 8192
