@@ -44,6 +44,319 @@
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`、`owning Agent session` | `tool/call`、`todo/write`、`tool/result` | - | todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。 |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
+| `@deepseek-ai/dsh-tool-art-query` | `query_admission_detail_2026`、`query_admission_mode_overview`、`query_art_policy_matrix`、`query_major_catalog`、`query_school_exam_list` | `ctx.tools`、`the art dataset file named by Config.dataPath at call time` | `tool/call`、`tool/result` | - | 五个工具查同一个外部数据集（由本包 scripts/convert_art_xlsx.py 从艺术类招生工作簿生成），其位置由 Config.dataPath 指定；目录只采集 schema，不读取该文件。 |
+| `@deepseek-ai/dsh-tool-gaokao-query` | `query_college_admission_data`、`query_province_control_line`、`query_province_rule`、`query_yifenyiduan` | `ctx.tools`、`the local gaokao-api HTTP service (Config.apiUrl, default http://127.0.0.1:8901) at call time` | `tool/call`、`tool/result` | - | - |
+
+<a id="deepseek-aidsh-tool-art-query"></a>
+
+## `@deepseek-ai/dsh-tool-art-query`
+
+### `query_admission_detail_2026`
+
+查询艺术类本科批次投档明细（省份与年份必填）：院校专业组的投档最低综合分、文化总分、专业统考分、三科成绩、投档/录取数与计划数，按投档最低综合分从高到低排列。可按统考类别、院校名与投档最低综合分区间进一步筛选。category 既接受数据集中的原始科类名，也接受归一的统考类别：美术与设计类、音乐类、舞蹈类、表(导)演类、播音与主持类、书法类、戏曲类（传归类名会覆盖该类别下音乐表演、音乐教育等各方向）。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "year": {
+      "type": "integer",
+      "description": "年份，目前仅支持 2026"
+    },
+    "province": {
+      "type": "string",
+      "description": "省份，如：浙江（可用简称）"
+    },
+    "category": {
+      "type": "array",
+      "description": "科类，可多个；如 [\"美术与设计类\"] 或 [\"音乐类(器乐)\"]",
+      "items": {
+        "type": "string"
+      }
+    },
+    "school_name": {
+      "type": "array",
+      "description": "院校名，可多个，按包含匹配；如 [\"中央戏剧学院\"]",
+      "items": {
+        "type": "string"
+      }
+    },
+    "admission_max_score": {
+      "type": "number",
+      "description": "投档最低综合分上限（含）"
+    },
+    "admission_min_score": {
+      "type": "number",
+      "description": "投档最低综合分下限（含）"
+    }
+  },
+  "required": [
+    "year",
+    "province"
+  ]
+}
+```
+
+Source: [`packages/gaokao/tool-art-query/src/index.ts`](../packages/gaokao/tool-art-query/src/index.ts)
+
+### `query_admission_mode_overview`
+
+查询艺术类招生模式总览：每种招生模式（省级统考、校考、省际联考等）的所属类型、考试形式、报考条件、录取规则要点、可报考专业与备注。无需参数，一次返回全部模式。
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/gaokao/tool-art-query/src/index.ts`](../packages/gaokao/tool-art-query/src/index.ts)
+
+### `query_art_policy_matrix`
+
+查询某个省份的艺术类招生政策矩阵：统考科类设置、统考时间、批次设置与录取顺序、志愿模式、综合分模式归类与各科类综合分公式、专业统考满分与科目构成、文化控制线政策、校考政策、特殊政策、年度变化与官方来源。按省份查询，一次返回该省的全部政策条目。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "province": {
+      "type": "string",
+      "description": "省份，如：北京、浙江（可用简称）"
+    }
+  },
+  "required": [
+    "province"
+  ]
+}
+```
+
+Source: [`packages/gaokao/tool-art-query/src/index.ts`](../packages/gaokao/tool-art-query/src/index.ts)
+
+### `query_major_catalog`
+
+查询艺术类可报考专业目录：统考类别/录取方式、包含方向、对应本科专业与备注。可按统考类别或方向筛选（按包含匹配），不带条件返回全部条目。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "exam_category": {
+      "type": "array",
+      "description": "统考类别或方向，可多个；如 [\"美术与设计类\"]、[\"音乐表演\"]",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
+```
+
+Source: [`packages/gaokao/tool-art-query/src/index.ts`](../packages/gaokao/tool-art-query/src/index.ts)
+
+### `query_school_exam_list`
+
+查询可组织艺术类专业校考的院校名单：院校名称、所在地、院校性质（独立设置、参照独立设置等）与校考专业增减情况。不带条件返回全部，也可按院校所在省份或院校名筛选。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "school_province": {
+      "type": "array",
+      "description": "院校所在省份，可多个；如 [\"北京\"]",
+      "items": {
+        "type": "string"
+      }
+    },
+    "school_name": {
+      "type": "array",
+      "description": "院校名，可多个，按包含匹配；如 [\"中央\"]",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
+```
+
+Source: [`packages/gaokao/tool-art-query/src/index.ts`](../packages/gaokao/tool-art-query/src/index.ts)
+
+五个工具查同一个外部数据集（由本包 scripts/convert_art_xlsx.py 从艺术类招生工作簿生成），其位置由 Config.dataPath 指定；目录只采集 schema，不读取该文件。
+
+<a id="deepseek-aidsh-tool-gaokao-query"></a>
+
+## `@deepseek-ai/dsh-tool-gaokao-query`
+
+### `query_college_admission_data`
+
+查询院校专业录取数据，按省份、选科、院校专业组模式等筛选。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "exam_province": {
+      "type": "string",
+      "description": "高考省份，如 浙江"
+    },
+    "subject": {
+      "type": "string",
+      "description": "选科，逗号分隔，如：物理,化学,生物"
+    },
+    "college_major_group": {
+      "type": "integer",
+      "description": "0=专业+院校模式，1=院校专业组模式"
+    },
+    "school_province": {
+      "type": "string",
+      "description": "学校所在省份，多个用逗号分隔"
+    },
+    "school_city": {
+      "type": "string",
+      "description": "学校所在城市，多个用逗号分隔"
+    },
+    "school_name": {
+      "type": "string",
+      "description": "学校名字，多个用逗号分隔"
+    },
+    "year": {
+      "type": "integer",
+      "description": "年份，仅支持2024/2025"
+    },
+    "major_name": {
+      "type": "string",
+      "description": "专业名，多个用逗号分隔"
+    },
+    "parsed_major_name": {
+      "type": "string",
+      "description": "解析后的专业名，多个用逗号分隔"
+    },
+    "major_category": {
+      "type": "string",
+      "description": "专业类，多个用逗号分隔"
+    },
+    "sino_foreign": {
+      "type": "integer",
+      "description": "是否为中外合办"
+    },
+    "admission_score_min": {
+      "type": "integer",
+      "description": "分数最小值"
+    },
+    "admission_score_max": {
+      "type": "integer",
+      "description": "分数最大值"
+    },
+    "admission_rank_min": {
+      "type": "integer",
+      "description": "位次最小值"
+    },
+    "admission_rank_max": {
+      "type": "integer",
+      "description": "位次最大值"
+    },
+    "fields": {
+      "type": "string",
+      "description": "可选字段，逗号分隔，不传则返回全部。可选：school_province(学校省份),school_city(学校城市),school_name(学校),school_code(学校代码),year(年份)undergraduate_type(大学类型),major_group_code(专业组代码),major_code(专业代码),major_name(专业名),parsed_major_name(解析专业名),major_category(专业类),campus(校区),subject_requirement(选科要求)study_duration(学制),major_note(备注),sino_foreign(中外合办),tuition_fee(学费),parsed_tuition_fee(解析学费),enrollment_plan(招生计划),admission_score(录取分数),admission_rank(录取位次)"
+    }
+  },
+  "required": [
+    "exam_province",
+    "subject",
+    "college_major_group"
+  ]
+}
+```
+
+Source: [`packages/gaokao/tool-gaokao-query/src/index.ts`](../packages/gaokao/tool-gaokao-query/src/index.ts)
+
+### `query_province_control_line`
+
+查询某省份某年的高考各批次控制分数线。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "province": {
+      "type": "string",
+      "description": "省份，如：浙江"
+    },
+    "year": {
+      "type": "integer",
+      "description": "年份，默认 2025"
+    }
+  },
+  "required": [
+    "province"
+  ]
+}
+```
+
+Source: [`packages/gaokao/tool-gaokao-query/src/index.ts`](../packages/gaokao/tool-gaokao-query/src/index.ts)
+
+### `query_province_rule`
+
+查询省份高考志愿填报规则，支持选科模式、填报模式、志愿数量等信息。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "province": {
+      "type": "string",
+      "description": "省份，如：浙江"
+    },
+    "year": {
+      "type": "integer",
+      "description": "年份，仅支持 2026、2027"
+    }
+  },
+  "required": [
+    "province",
+    "year"
+  ]
+}
+```
+
+Source: [`packages/gaokao/tool-gaokao-query/src/index.ts`](../packages/gaokao/tool-gaokao-query/src/index.ts)
+
+### `query_yifenyiduan`
+
+查询一分一段表数据，返回每个分数对应的本段人数和累计人数。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "province": {
+      "type": "string",
+      "description": "省份，如：浙江"
+    },
+    "year": {
+      "type": "integer",
+      "description": "年份"
+    },
+    "subject_combination": {
+      "type": "string",
+      "description": "选科：物理、历史、或总"
+    },
+    "score": {
+      "type": "integer",
+      "description": "要查询的分数"
+    }
+  },
+  "required": [
+    "province",
+    "year",
+    "subject_combination",
+    "score"
+  ]
+}
+```
+
+Source: [`packages/gaokao/tool-gaokao-query/src/index.ts`](../packages/gaokao/tool-gaokao-query/src/index.ts)
 
 <a id="deepseek-aidsh-tool-ask-user"></a>
 

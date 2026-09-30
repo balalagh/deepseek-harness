@@ -327,6 +327,7 @@
     { "path": "./packages/todo/tool-todo" },
     { "path": "./packages/gaokao/gaokao-api" },
     { "path": "./packages/gaokao/tool-gaokao-query" },
+    { "path": "./packages/gaokao/tool-art-query" },
     { "path": "./packages/plan/plan-mode" },
     { "path": "./packages/preset/agent-presets" },
     { "path": "./packages/preset/persona" },

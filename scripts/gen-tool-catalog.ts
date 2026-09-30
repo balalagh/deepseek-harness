@@ -39,6 +39,7 @@ import * as ToolSubagentListAgents from '@deepseek-ai/dsh-tool-subagent-control/
 import SkillRegistry from '@deepseek-ai/dsh-skill'
 import * as SkillFileSystem from '@deepseek-ai/dsh-skill-filesystem'
 import LocalJobRegistry from '@deepseek-ai/dsh-jobs-local'
+import * as ToolArtQuery from '@deepseek-ai/dsh-tool-art-query'
 import * as ToolAskUser from '@deepseek-ai/dsh-tool-ask-user'
 import * as ToolBash from '@deepseek-ai/dsh-tool-bash'
 import * as ToolPwsh from '@deepseek-ai/dsh-tool-pwsh'
@@ -48,6 +49,7 @@ import CordisHostRunner from '@deepseek-ai/dsh-cordis-host-runner'
 import * as ToolCordis from '@deepseek-ai/dsh-tool-cordis'
 import * as ToolFs from '@deepseek-ai/dsh-tool-fs'
 import * as ToolFsSearch from '@deepseek-ai/dsh-tool-fs-search'
+import * as ToolGaokaoQuery from '@deepseek-ai/dsh-tool-gaokao-query'
 import * as ToolStrReplaceEditor from '@deepseek-ai/dsh-tool-str-replace-editor'
 import TerminalSessionService from '@deepseek-ai/dsh-terminal'
 import * as ToolPty from '@deepseek-ai/dsh-tool-terminal'
@@ -187,6 +189,31 @@ export interface ToolPackage {
  * guard proves it is exhaustive against the on-disk glob.
  */
 const TOOL_PACKAGES: ToolPackage[] = [
+  {
+    pkg: '@deepseek-ai/dsh-tool-art-query',
+    dir: 'tool-art-query',
+    source: 'packages/gaokao/tool-art-query/src/index.ts',
+    requires: ['ctx.tools', 'the art dataset file named by Config.dataPath at call time'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // dataPath has no default because the dataset is deployment data; the
+      // catalog only harvests schemas, so the boot names a path no tool reads
+      // (the dataset loads on the first call).
+      await ctx.plugin(ToolArtQuery, { dataPath: 'tool-catalog-art-tools.json' })
+    },
+    note:
+      'The five tools query one external dataset (generated from the art-exam workbook by the package\'s scripts/convert_art_xlsx.py) named by Config.dataPath; the catalog harvests schemas without reading it.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-gaokao-query',
+    dir: 'tool-gaokao-query',
+    source: 'packages/gaokao/tool-gaokao-query/src/index.ts',
+    requires: ['ctx.tools', 'the local gaokao-api HTTP service (Config.apiUrl, default http://127.0.0.1:8901) at call time'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(ToolGaokaoQuery)
+    },
+  },
   {
     pkg: '@deepseek-ai/dsh-tool-ask-user',
     dir: 'tool-ask-user',

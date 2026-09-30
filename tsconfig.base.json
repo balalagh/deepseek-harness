@@ -408,6 +408,7 @@
       "@deepseek-ai/dsh-timeout": ["./packages/util/timeout/src"],
       "@deepseek-ai/dsh-tmux-context": ["./packages/context/tmux-context/src"],
       "@deepseek-ai/dsh-token-meter": ["./packages/llm/token-meter/src"],
+      "@deepseek-ai/dsh-tool-art-query": ["./packages/gaokao/tool-art-query/src"],
       "@deepseek-ai/dsh-tool-ask-user": ["./packages/interaction/tool-ask-user/src"],
       "@deepseek-ai/dsh-tool-bash": ["./packages/shell/tool-bash/src"],
       "@deepseek-ai/dsh-tool-bash-persistent": ["./packages/shell/tool-bash-persistent/src"],
